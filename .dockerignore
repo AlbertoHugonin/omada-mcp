@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+.git
+.github
+tests
+docs
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Never bake secrets into an image
+.env
+.env.*
+!.env.example
