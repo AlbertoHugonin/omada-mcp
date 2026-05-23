@@ -1,11 +1,33 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { isToolAllowed } from "../capability.js";
 import { logger } from "../logger.js";
+import { getApRadiosTool } from "./read/getApRadios.js";
+import { getClientTool } from "./read/getClient.js";
+import { getDeviceTool } from "./read/getDevice.js";
+import { getSiteSettingsTool } from "./read/getSiteSettings.js";
+import { getSsidTool } from "./read/getSsid.js";
+import { listClientsTool } from "./read/listClients.js";
+import { listDevicesTool } from "./read/listDevices.js";
+import { listEventsTool } from "./read/listEvents.js";
+import { listLogsTool } from "./read/listLogs.js";
 import { listSitesTool } from "./read/listSites.js";
+import { listSsidsTool } from "./read/listSsids.js";
 import type { ToolContext, ToolModule } from "./types.js";
 
 /** Every tool the server knows about, in registration order. */
-const ALL_TOOLS: readonly ToolModule[] = [listSitesTool];
+const ALL_TOOLS: readonly ToolModule[] = [
+  listSitesTool,
+  listDevicesTool,
+  getDeviceTool,
+  getApRadiosTool,
+  listClientsTool,
+  getClientTool,
+  listSsidsTool,
+  getSsidTool,
+  getSiteSettingsTool,
+  listEventsTool,
+  listLogsTool,
+];
 
 /**
  * Registers only the tools allowed by the active capability profile. Tools

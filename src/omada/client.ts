@@ -1,8 +1,54 @@
+import { z } from "zod";
 import type { Config } from "../config.js";
 import { logger } from "../logger.js";
 import { TokenManager } from "./auth.js";
 import { HttpClient, OmadaHttpError, type RequestOptions } from "./http.js";
-import { paginatedSchema, parseApiResult, type Site, siteSchema } from "./types.js";
+import {
+  type AlertLogResponse,
+  type ApInfo,
+  type ApRadioConfig,
+  alertLogResponseSchema,
+  apInfoSchema,
+  apRadioConfigSchema,
+  type BandSteeringSetting,
+  bandSteeringSettingSchema,
+  type Client,
+  type ClientsResponse,
+  clientSchema,
+  clientsResponseSchema,
+  type DeviceListItem,
+  deviceListItemSchema,
+  type EventLogResponse,
+  eventLogResponseSchema,
+  type MeshSetting,
+  meshSettingSchema,
+  paginatedSchema,
+  parseApiResult,
+  type RoamingSetting,
+  roamingSettingSchema,
+  type Site,
+  type SiteSsidGroup,
+  type SsidListItem,
+  siteSchema,
+  ssidListItemSchema,
+  type WlanGroup,
+  wlanGroupSchema,
+} from "./types.js";
+
+export interface ListOpts {
+  page?: number;
+  pageSize?: number;
+}
+
+export interface LogQueryOpts extends ListOpts {
+  timeStartMs: number;
+  timeEndMs: number;
+  module?: "System" | "Device" | "Client";
+}
+
+export interface AlertQueryOpts extends LogQueryOpts {
+  resolved?: boolean;
+}
 
 /** Typed, thin wrapper over the Omada Open API. */
 export class OmadaClient {
@@ -16,6 +62,8 @@ export class OmadaClient {
     });
     this.tokens = new TokenManager(this.http, config);
   }
+
+  // ─── HTTP plumbing ─────────────────────────────────────────────────────────
 
   /**
    * Authenticated request against an `/openapi/...` path. The Open API expects
@@ -44,7 +92,13 @@ export class OmadaClient {
     }
   }
 
-  /** Lists all sites on the controller. Doubles as an auth/connectivity check. */
+  private sitePath(siteId: string, suffix: string): string {
+    return `/openapi/v1/${this.config.omadacId}/sites/${siteId}${suffix}`;
+  }
+
+  // ─── Sites ────────────────────────────────────────────────────────────────
+
+  /** Lists all sites on the controller. */
   async listSites(): Promise<Site[]> {
     const raw = await this.authedRequest(`/openapi/v1/${this.config.omadacId}/sites`, {
       query: { page: 1, pageSize: 100 },
@@ -55,5 +109,154 @@ export class OmadaClient {
       "GET /openapi/v1/{omadacId}/sites",
     );
     return page.data;
+  }
+
+  // ─── Devices ──────────────────────────────────────────────────────────────
+
+  /** Lists APs, switches and gateways at a site. Pagination is required. */
+  async listDevices(siteId: string, opts: ListOpts = {}): Promise<DeviceListItem[]> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/devices"), {
+      query: { page: opts.page ?? 1, pageSize: opts.pageSize ?? 100 },
+    });
+    const page = parseApiResult(
+      paginatedSchema(deviceListItemSchema),
+      raw,
+      "GET /sites/{siteId}/devices",
+    );
+    return page.data;
+  }
+
+  /** Detail for one AP. */
+  async getApInfo(siteId: string, apMac: string): Promise<ApInfo> {
+    const raw = await this.authedRequest(this.sitePath(siteId, `/aps/${apMac}`));
+    return parseApiResult(apInfoSchema, raw, `GET /sites/{siteId}/aps/${apMac}`);
+  }
+
+  /** Configured per-band radio settings for one AP. */
+  async getApRadioConfig(siteId: string, apMac: string): Promise<ApRadioConfig> {
+    const raw = await this.authedRequest(this.sitePath(siteId, `/aps/${apMac}/radio-config`));
+    return parseApiResult(
+      apRadioConfigSchema,
+      raw,
+      `GET /sites/{siteId}/aps/${apMac}/radio-config`,
+    );
+  }
+
+  // ─── Clients ──────────────────────────────────────────────────────────────
+
+  /** Lists connected clients (wired + wireless) at a site, with summary counts. */
+  async listClients(siteId: string, opts: ListOpts = {}): Promise<ClientsResponse> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/clients"), {
+      query: { page: opts.page ?? 1, pageSize: opts.pageSize ?? 100 },
+    });
+    return parseApiResult(clientsResponseSchema, raw, "GET /sites/{siteId}/clients");
+  }
+
+  /** Full detail for one client. */
+  async getClient(siteId: string, clientMac: string): Promise<Client> {
+    const raw = await this.authedRequest(this.sitePath(siteId, `/clients/${clientMac}`));
+    return parseApiResult(clientSchema, raw, `GET /sites/{siteId}/clients/${clientMac}`);
+  }
+
+  // ─── SSIDs / WLAN groups ──────────────────────────────────────────────────
+
+  async listWlanGroups(siteId: string): Promise<WlanGroup[]> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/wireless-network/wlans"));
+    return parseApiResult(
+      z.array(wlanGroupSchema),
+      raw,
+      "GET /sites/{siteId}/wireless-network/wlans",
+    );
+  }
+
+  /**
+   * Site-wide SSID overview — each WLAN group with all of its configured SSIDs.
+   * The site-wide `/wireless-network/ssids` endpoint only reports SSIDs that
+   * are currently being broadcast, so this composes the WLAN-group list with
+   * each group's full SSID list instead.
+   */
+  async listSiteSsids(siteId: string): Promise<SiteSsidGroup[]> {
+    const wlans = await this.listWlanGroups(siteId);
+    return Promise.all(
+      wlans.map(async (wlan) => {
+        const ssids = await this.listSsidsInWlan(siteId, wlan.wlanId);
+        return {
+          wlanId: wlan.wlanId,
+          wlanName: wlan.name,
+          ssidList: ssids.map((s) => ({ ssidId: s.ssidId, ssidName: s.name })),
+        };
+      }),
+    );
+  }
+
+  /** SSIDs within one WLAN group (paginated). */
+  async listSsidsInWlan(
+    siteId: string,
+    wlanId: string,
+    opts: ListOpts = {},
+  ): Promise<SsidListItem[]> {
+    const raw = await this.authedRequest(
+      this.sitePath(siteId, `/wireless-network/wlans/${wlanId}/ssids`),
+      { query: { page: opts.page ?? 1, pageSize: opts.pageSize ?? 100 } },
+    );
+    const page = parseApiResult(
+      paginatedSchema(ssidListItemSchema),
+      raw,
+      `GET /sites/{siteId}/wireless-network/wlans/${wlanId}/ssids`,
+    );
+    return page.data;
+  }
+
+  /** Full SSID detail by (wlanId, ssidId). */
+  async getSsid(siteId: string, wlanId: string, ssidId: string): Promise<unknown> {
+    return this.authedRequest(
+      this.sitePath(siteId, `/wireless-network/wlans/${wlanId}/ssids/${ssidId}`),
+    );
+  }
+
+  // ─── Site settings (read-side) ────────────────────────────────────────────
+
+  async getSiteRoaming(siteId: string): Promise<RoamingSetting> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/roaming"));
+    return parseApiResult(roamingSettingSchema, raw, "GET /sites/{siteId}/roaming");
+  }
+
+  async getSiteBandSteering(siteId: string): Promise<BandSteeringSetting> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/band-steering"));
+    return parseApiResult(bandSteeringSettingSchema, raw, "GET /sites/{siteId}/band-steering");
+  }
+
+  async getSiteMesh(siteId: string): Promise<MeshSetting> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/mesh"));
+    return parseApiResult(meshSettingSchema, raw, "GET /sites/{siteId}/mesh");
+  }
+
+  // ─── Logs ─────────────────────────────────────────────────────────────────
+
+  async listEvents(siteId: string, opts: LogQueryOpts): Promise<EventLogResponse> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/logs/events"), {
+      query: {
+        page: opts.page ?? 1,
+        pageSize: opts.pageSize ?? 50,
+        "filters.timeStart": opts.timeStartMs,
+        "filters.timeEnd": opts.timeEndMs,
+        "filters.module": opts.module,
+      },
+    });
+    return parseApiResult(eventLogResponseSchema, raw, "GET /sites/{siteId}/logs/events");
+  }
+
+  async listAlerts(siteId: string, opts: AlertQueryOpts): Promise<AlertLogResponse> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/logs/alerts"), {
+      query: {
+        page: opts.page ?? 1,
+        pageSize: opts.pageSize ?? 50,
+        "filters.timeStart": opts.timeStartMs,
+        "filters.timeEnd": opts.timeEndMs,
+        "filters.module": opts.module,
+        "filters.resolved": opts.resolved === undefined ? undefined : String(opts.resolved),
+      },
+    });
+    return parseApiResult(alertLogResponseSchema, raw, "GET /sites/{siteId}/logs/alerts");
   }
 }
