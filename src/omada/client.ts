@@ -14,6 +14,7 @@ import {
   bandSteeringSettingSchema,
   type Client,
   type ClientsResponse,
+  type CustomRateLimit,
   clientSchema,
   clientsResponseSchema,
   type DeviceListItem,
@@ -27,8 +28,10 @@ import {
   type RoamingSetting,
   roamingSettingSchema,
   type Site,
+  type SiteLed,
   type SiteSsidGroup,
   type SsidListItem,
+  siteLedSchema,
   siteSchema,
   ssidListItemSchema,
   type WlanGroup,
@@ -258,5 +261,77 @@ export class OmadaClient {
       },
     });
     return parseApiResult(alertLogResponseSchema, raw, "GET /sites/{siteId}/logs/alerts");
+  }
+
+  // ─── Site LED (ops-write) ─────────────────────────────────────────────────
+
+  async getSiteLed(siteId: string): Promise<SiteLed> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/led"));
+    return parseApiResult(siteLedSchema, raw, "GET /sites/{siteId}/led");
+  }
+
+  /** Site-wide LED on/off. The Open API does not expose a per-device LED. */
+  async setSiteLed(siteId: string, enable: boolean): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, "/led"), {
+      method: "PUT",
+      body: { enable },
+    });
+  }
+
+  // ─── Device + client actions (ops-write) ──────────────────────────────────
+
+  async rebootDevice(siteId: string, deviceMac: string): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, `/devices/${deviceMac}/reboot`), {
+      method: "POST",
+    });
+  }
+
+  async blockClient(siteId: string, clientMac: string): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, `/clients/${clientMac}/block`), {
+      method: "POST",
+    });
+  }
+
+  async unblockClient(siteId: string, clientMac: string): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, `/clients/${clientMac}/unblock`), {
+      method: "POST",
+    });
+  }
+
+  async reconnectClient(siteId: string, clientMac: string): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, `/clients/${clientMac}/reconnect`), {
+      method: "POST",
+    });
+  }
+
+  async setClientRateLimit(
+    siteId: string,
+    clientMac: string,
+    body: {
+      mode: number;
+      rateLimitProfileId?: string;
+      customRateLimit?: CustomRateLimit;
+    },
+  ): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, `/clients/${clientMac}/ratelimit`), {
+      method: "PATCH",
+      body,
+    });
+  }
+
+  // ─── Site settings (admin writes) ─────────────────────────────────────────
+
+  async updateSiteRoaming(siteId: string, body: unknown): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, "/roaming"), {
+      method: "PATCH",
+      body,
+    });
+  }
+
+  async updateBandSteering(siteId: string, body: unknown): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, "/band-steering"), {
+      method: "PATCH",
+      body,
+    });
   }
 }

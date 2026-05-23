@@ -230,6 +230,29 @@ export const meshSettingSchema = z
   .passthrough();
 export type MeshSetting = z.infer<typeof meshSettingSchema>;
 
+// ─── Site LED ────────────────────────────────────────────────────────────────
+
+export const siteLedSchema = z.object({
+  enable: z.boolean(),
+});
+export type SiteLed = z.infer<typeof siteLedSchema>;
+
+// ─── Client rate limit ───────────────────────────────────────────────────────
+
+/**
+ * Custom rate-limit entity. Units: 1 = Kbps, 2 = Mbps. Limit is 1-1024.
+ * Used when `mode = 0` (custom mode). Mode 1 uses a profile id instead.
+ */
+export const customRateLimitSchema = z.object({
+  upEnable: z.boolean().optional(),
+  upUnit: z.number().int().optional(),
+  upLimit: z.number().int().optional(),
+  downEnable: z.boolean().optional(),
+  downUnit: z.number().int().optional(),
+  downLimit: z.number().int().optional(),
+});
+export type CustomRateLimit = z.infer<typeof customRateLimitSchema>;
+
 // ─── Logs (events + alerts) ─────────────────────────────────────────────────
 
 /** Log items vary widely; keep the schema permissive. */

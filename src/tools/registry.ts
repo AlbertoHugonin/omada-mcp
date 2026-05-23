@@ -13,9 +13,18 @@ import { listLogsTool } from "./read/listLogs.js";
 import { listSitesTool } from "./read/listSites.js";
 import { listSsidsTool } from "./read/listSsids.js";
 import type { ToolContext, ToolModule } from "./types.js";
+import { blockClientTool } from "./write/blockClient.js";
+import { rebootDeviceTool } from "./write/rebootDevice.js";
+import { reconnectClientTool } from "./write/reconnectClient.js";
+import { setClientRateLimitTool } from "./write/setClientRateLimit.js";
+import { setSiteLedTool } from "./write/setSiteLed.js";
+import { unblockClientTool } from "./write/unblockClient.js";
+import { updateBandSteeringTool } from "./write/updateBandSteering.js";
+import { updateSiteRoamingTool } from "./write/updateSiteRoaming.js";
 
 /** Every tool the server knows about, in registration order. */
 const ALL_TOOLS: readonly ToolModule[] = [
+  // safe-read
   listSitesTool,
   listDevicesTool,
   getDeviceTool,
@@ -27,6 +36,16 @@ const ALL_TOOLS: readonly ToolModule[] = [
   getSiteSettingsTool,
   listEventsTool,
   listLogsTool,
+  // ops-write
+  rebootDeviceTool,
+  blockClientTool,
+  unblockClientTool,
+  reconnectClientTool,
+  setSiteLedTool,
+  setClientRateLimitTool,
+  // admin
+  updateSiteRoamingTool,
+  updateBandSteeringTool,
 ];
 
 /**
