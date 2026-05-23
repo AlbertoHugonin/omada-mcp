@@ -334,4 +334,36 @@ export class OmadaClient {
       body,
     });
   }
+
+  /**
+   * PATCH AP radio config. The endpoint accepts the full multi-band object;
+   * callers should GET first, merge in changes for the chosen band, then send
+   * the full body back (see brief §5 lesson 1).
+   */
+  async updateApRadioConfig(siteId: string, apMac: string, body: unknown): Promise<void> {
+    await this.authedRequest(this.sitePath(siteId, `/aps/${apMac}/radio-config`), {
+      method: "PATCH",
+      body,
+    });
+  }
+
+  /**
+   * PATCH SSID basic config. The endpoint declares 9 required fields, so
+   * callers should GET the current SSID, merge in changes, and send the
+   * full body.
+   */
+  async updateSsidBasicConfig(
+    siteId: string,
+    wlanId: string,
+    ssidId: string,
+    body: unknown,
+  ): Promise<void> {
+    await this.authedRequest(
+      this.sitePath(
+        siteId,
+        `/wireless-network/wlans/${wlanId}/ssids/${ssidId}/update-basic-config`,
+      ),
+      { method: "PATCH", body },
+    );
+  }
 }

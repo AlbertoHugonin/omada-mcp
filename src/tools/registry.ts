@@ -19,8 +19,10 @@ import { reconnectClientTool } from "./write/reconnectClient.js";
 import { setClientRateLimitTool } from "./write/setClientRateLimit.js";
 import { setSiteLedTool } from "./write/setSiteLed.js";
 import { unblockClientTool } from "./write/unblockClient.js";
+import { updateApRadioTool } from "./write/updateApRadio.js";
 import { updateBandSteeringTool } from "./write/updateBandSteering.js";
 import { updateSiteRoamingTool } from "./write/updateSiteRoaming.js";
+import { updateSsidTool } from "./write/updateSsid.js";
 
 /** Every tool the server knows about, in registration order. */
 const ALL_TOOLS: readonly ToolModule[] = [
@@ -46,6 +48,8 @@ const ALL_TOOLS: readonly ToolModule[] = [
   // admin
   updateSiteRoamingTool,
   updateBandSteeringTool,
+  updateSsidTool,
+  updateApRadioTool,
 ];
 
 /**
