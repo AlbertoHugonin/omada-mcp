@@ -1,0 +1,55 @@
+# omada-mcp + mbentley/omada-controller example
+#
+# This pairs `omada-mcp` with the popular community Docker image for the
+# Omada Controller. Copy to `docker-compose.yml`, fill out `.env`, and run:
+#
+#     docker compose up -d omada-controller
+#     # then invoke omada-mcp from your MCP client (see README) using
+#     # `docker run -i --rm --env-file .env --network host \
+#     #     ghcr.io/<owner>/omada-mcp:latest`
+#
+# Once HTTP transport lands, the `omada-mcp` service below will run as a
+# long-lived sidecar that the MCP client connects to over HTTP.
+services:
+  omada-controller:
+    image: mbentley/omada-controller:latest
+    container_name: omada-controller
+    restart: unless-stopped
+    # mbentley's image expects host networking for SDN discovery to work
+    # correctly. If you run on a remote host, switch to `network_mode: bridge`
+    # with the controller's documented port set explicitly mapped.
+    network_mode: host
+    environment:
+      TZ: America/Los_Angeles
+      PUID: "1000"
+      PGID: "1000"
+      MANAGE_HTTP_PORT: "8088"
+      MANAGE_HTTPS_PORT: "8043"
+      PORTAL_HTTP_PORT: "8088"
+      PORTAL_HTTPS_PORT: "8843"
+      SHOW_SERVER_LOGS: "true"
+      SHOW_MONGODB_LOGS: "false"
+    volumes:
+      - omada-data:/opt/tplink/EAPController/data
+      - omada-work:/opt/tplink/EAPController/work
+      - omada-logs:/opt/tplink/EAPController/logs
+
+  # The MCP server. With stdio transport (the default and current state)
+  # the typical pattern is to launch it on demand from your MCP client via
+  # `docker run -i --rm` rather than running it as a long-lived service.
+  # An MCP client config snippet is in the README.
+  #
+  # omada-mcp:
+  #   image: ghcr.io/<owner>/omada-mcp:latest
+  #   container_name: omada-mcp
+  #   restart: unless-stopped
+  #   stdin_open: true
+  #   tty: false
+  #   depends_on:
+  #     - omada-controller
+  #   env_file: .env
+
+volumes:
+  omada-data:
+  omada-work:
+  omada-logs:
