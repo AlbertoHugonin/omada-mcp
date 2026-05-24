@@ -1,14 +1,43 @@
 import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { CAPABILITY_PROFILES, type CapabilityProfile } from "./capability.js";
 import type { LogLevel } from "./logger.js";
 
-/** Loads a `.env` file from the working directory when present. */
+/**
+ * Locates and loads a `.env` file. Tries (in order):
+ *   1. `OMADA_DOTENV_PATH` if set in the environment — the explicit override.
+ *      Useful when an MCP client launches the server but doesn't reliably
+ *      set the working directory (Claude Desktop, for example).
+ *   2. `<cwd>/.env` — works for `npm start` or running from the repo root.
+ *   3. `<repo-root>/.env` — resolved relative to the compiled script's
+ *      location (`dist/config.js` → `..` → `.env`). This is the path the
+ *      server falls back to when launched by absolute path with no `cwd`.
+ *
+ * Silently returns if no candidate exists — env vars may have been set
+ * directly (e.g. via the MCP client's `env` block).
+ */
 function loadDotEnvIfPresent(): void {
-  const path = `${process.cwd()}/.env`;
-  if (existsSync(path)) {
-    // process.loadEnvFile throws if the file is missing; guarded by existsSync.
-    process.loadEnvFile(path);
+  const candidates: string[] = [];
+
+  if (process.env.OMADA_DOTENV_PATH) {
+    candidates.push(process.env.OMADA_DOTENV_PATH);
+  }
+  candidates.push(resolve(process.cwd(), ".env"));
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    // dist/config.js → repo root; src/config.ts (running via tsx) → repo root.
+    candidates.push(resolve(here, "..", ".env"));
+  } catch {
+    // import.meta.url unavailable (very unlikely under ESM Node) — ignore.
+  }
+
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      process.loadEnvFile(path);
+      return;
+    }
   }
 }
 

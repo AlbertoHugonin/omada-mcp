@@ -5,6 +5,16 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `.env` now loads when the server is launched by an MCP client (e.g.
+  Claude Desktop) that doesn't set the working directory. The config
+  loader now also looks beside the compiled entry point and at an
+  explicit `OMADA_DOTENV_PATH` override, in addition to `cwd`. Previously
+  the server would fail at startup with "Invalid configuration:
+  OMADA_BASE_URL: expected string, received undefined" because `.env`
+  wasn't discoverable from the launcher's working directory.
+
 ### Docs
 
 - README is now explicit that this release is **local-only**: the server

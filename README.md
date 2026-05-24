@@ -92,14 +92,40 @@ that means editing `claude_desktop_config.json`:
   "mcpServers": {
     "omada": {
       "command": "node",
-      "args": ["/abs/path/to/omada-mcp/dist/index.js"],
-      "cwd": "/abs/path/to/omada-mcp"
+      "args": ["/abs/path/to/omada-mcp/dist/index.js"]
     }
   }
 }
 ```
 
-`cwd` matters — the server reads `.env` from the working directory.
+The server finds `.env` automatically — it looks next to the compiled
+entry point (i.e. `<repo>/dist/index.js` → `<repo>/.env`), then in the
+working directory, then at whatever path `OMADA_DOTENV_PATH` points at.
+Any one of those three is enough.
+
+> If the server starts but fails with "Invalid configuration: …" telling
+> you the required vars are `undefined`, your `.env` is not where it's
+> looking. Either move/copy `.env` next to `dist/index.js`, or set
+> `OMADA_DOTENV_PATH` explicitly:
+>
+> ```jsonc
+> {
+>   "mcpServers": {
+>     "omada": {
+>       "command": "node",
+>       "args": ["/abs/path/to/omada-mcp/dist/index.js"],
+>       "env": {
+>         "OMADA_DOTENV_PATH": "/abs/path/to/omada-mcp/.env"
+>       }
+>     }
+>   }
+> }
+> ```
+>
+> The MCP client's `env` block is also a perfectly good place to put the
+> Omada config inline if you'd rather not keep a `.env` file at all —
+> e.g. set `OMADA_BASE_URL`, `OMADA_CLIENT_ID`, `OMADA_CLIENT_SECRET`,
+> `OMADA_OMADAC_ID` directly there.
 
 #### Option B — Local Docker build
 
@@ -206,6 +232,7 @@ All read tools are tagged `safe-read`. Every write tool defaults to
 | `MCP_HTTP_BIND` | no | `127.0.0.1` | Loopback bind when HTTP lands. |
 | `MCP_HTTP_PORT` | no | `3000` | |
 | `LOG_LEVEL` | no | `info` | `debug` / `info` / `warn` / `error`. |
+| `OMADA_DOTENV_PATH` | no | — | Explicit override path to a `.env` file. Useful when the MCP client launches the server without a predictable `cwd`. |
 
 ## Security
 
