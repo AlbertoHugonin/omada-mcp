@@ -1,15 +1,18 @@
-# omada-mcp + mbentley/omada-controller example
+# Example: pairing the Omada controller with omada-mcp on the same host.
 #
-# This pairs `omada-mcp` with the popular community Docker image for the
-# Omada Controller. Copy to `docker-compose.yml`, fill out `.env`, and run:
+# IMPORTANT — this file is aspirational, not the recommended deployment today.
 #
-#     docker compose up -d omada-controller
-#     # then invoke omada-mcp from your MCP client (see README) using
-#     # `docker run -i --rm --env-file .env --network host \
-#     #     ghcr.io/<owner>/omada-mcp:latest`
+# In the current release, omada-mcp is designed to run *locally on whatever
+# machine is running the MCP client* (Claude Code, Claude Desktop, etc.),
+# not as a long-lived service on a server. See the "Status — local use only"
+# section of README.md for the full reasoning. The MCP server speaks stdio
+# only; the HTTP transport that would make a sidecar deployment viable is
+# not yet implemented, and there is no authentication layer in front of it.
 #
-# Once HTTP transport lands, the `omada-mcp` service below will run as a
-# long-lived sidecar that the MCP client connects to over HTTP.
+# What this file documents: the *eventual* pairing once HTTP transport and
+# auth land. Today you can use the `omada-controller` service below as-is
+# (it has no dependency on omada-mcp), and run omada-mcp locally on your
+# laptop following README "Quick start".
 services:
   omada-controller:
     image: mbentley/omada-controller:latest
@@ -34,20 +37,32 @@ services:
       - omada-work:/opt/tplink/EAPController/work
       - omada-logs:/opt/tplink/EAPController/logs
 
-  # The MCP server. With stdio transport (the default and current state)
-  # the typical pattern is to launch it on demand from your MCP client via
-  # `docker run -i --rm` rather than running it as a long-lived service.
-  # An MCP client config snippet is in the README.
+  # ──────────────────────────────────────────────────────────────────────────
+  # Reserved for a future release. DO NOT uncomment yet.
+  #
+  # When the HTTP transport + Bearer-token auth land, this service will run
+  # omada-mcp as a sidecar that the MCP client connects to over HTTP. Until
+  # then, run omada-mcp locally per README's "Quick start".
+  #
+  # Also note: the `ghcr.io/<owner>/...` image reference is a placeholder —
+  # no such image is currently published. The CI workflow in this repo
+  # builds the image but does not push it. See README's note on the
+  # `ghcr.io` reference.
   #
   # omada-mcp:
   #   image: ghcr.io/<owner>/omada-mcp:latest
   #   container_name: omada-mcp
   #   restart: unless-stopped
-  #   stdin_open: true
-  #   tty: false
   #   depends_on:
   #     - omada-controller
   #   env_file: .env
+  #   environment:
+  #     MCP_TRANSPORT: http              # not implemented yet
+  #     MCP_HTTP_ENABLE: "true"          # not implemented yet
+  #     MCP_HTTP_BIND: 0.0.0.0           # only behind an authenticating proxy
+  #     MCP_HTTP_PORT: "3000"
+  #   ports:
+  #     - "127.0.0.1:3000:3000"          # publish only to loopback by default
 
 volumes:
   omada-data:

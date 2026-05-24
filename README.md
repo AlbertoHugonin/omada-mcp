@@ -4,7 +4,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server for the
 **TP-Link Omada SDN Controller**. It lets an AI assistant read and safely
 modify an Omada network through well-defined, capability-gated tools.
 
-Designed as a security-first companion to
+Built as a security-first companion to
 [`mbentley/docker-omada-controller`](https://github.com/mbentley/docker-omada-controller).
 
 - Talks to the **Omada Open API** (OAuth2 client-credentials) — *not* the
@@ -18,11 +18,35 @@ Designed as a security-first companion to
   env var.
 - Every write tool defaults to `dryRun: true` — preview the diff before
   applying. After apply, the controller is re-read and any silent overrides
-  are surfaced (see [§5 of the build brief](docs/SETUP.md#notes-on-the-open-api)).
-- stdio transport by default. HTTP transport is opt-in and gated by two
-  env vars; not yet implemented.
+  are surfaced.
 
 Verified against **Omada Controller 6.2.10.17** (`apiVer 3`).
+
+## Status — local use only
+
+> **This release is designed to run on the same machine as your MCP client
+> (e.g. your laptop running Claude Code or Claude Desktop). It is *not*
+> ready to be deployed as a long-lived service on your home server,
+> alongside the controller, or anywhere else network-reachable.**
+>
+> Why:
+>
+> - The server speaks **stdio only** today. Your MCP client launches it as a
+>   subprocess per session and pipes JSON-RPC over stdin/stdout — there is
+>   nothing to "connect to" over a network.
+> - **HTTP transport is scaffolded but not implemented.** The env-var plumbing
+>   exists (`MCP_TRANSPORT`, `MCP_HTTP_ENABLE`, `MCP_HTTP_BIND`,
+>   `MCP_HTTP_PORT`) so future work doesn't reshape the project — but today
+>   setting `MCP_TRANSPORT=http` throws a clear "use stdio" error.
+> - **There is no authentication in front of the server.** If HTTP were
+>   enabled today, anything reaching its port could invoke the write tools.
+>   A safe hosted deployment needs at minimum Bearer-token auth plus a
+>   nginx / VPN topology in front; that's a focused next phase, not a
+>   deploy-it-as-is.
+>
+> So: even though `docker-compose.example.yml` shows the eventual pairing
+> with `mbentley/omada-controller`, the only currently-supported deployment
+> is **run it locally**, beside whatever MCP client is using it.
 
 ## Quick start
 
@@ -34,47 +58,96 @@ app, and capture the **client ID**, **client secret** and **omadacId**.
 
 ### 2. Configure `.env`
 
-Copy `.env.example` to `.env` and fill in:
+Copy `.env.example` to `.env` in the repo root and fill in:
 
 ```ini
 OMADA_BASE_URL=https://omada.local:8043
 OMADA_CLIENT_ID=...
 OMADA_CLIENT_SECRET=...
 OMADA_OMADAC_ID=...
-OMADA_SITE_ID=...            # optional; tools require an explicit siteId otherwise
-OMADA_VERIFY_TLS=false       # for self-signed controller certs
+OMADA_SITE_ID=...                    # optional; tools require an explicit siteId otherwise
+OMADA_VERIFY_TLS=false               # for self-signed controller certs
 OMADA_CAPABILITY_PROFILE=safe-read   # safe-read | ops-write | admin
 ```
 
-### 3a. Run via `docker run` (recommended, alongside mbentley)
+`.env` is git-ignored. Keep it on the machine that will run the server.
+
+### 3. Pick a way to run it (choose ONE)
+
+Both options run the server **on whatever machine the MCP client is on**.
+There's no operational difference — pick whichever you find simpler.
+
+#### Option A — Node directly (recommended; no Docker needed)
 
 ```sh
-docker compose -f docker-compose.example.yml up -d omada-controller
-# then point your MCP client at:
-docker run -i --rm --env-file .env ghcr.io/<owner>/omada-mcp:latest
+npm install
+npm run build
 ```
 
-MCP-client config snippet (Claude Desktop, `claude_desktop_config.json`):
+Then point your MCP client at the compiled entry point. For Claude Desktop
+that means editing `claude_desktop_config.json`:
+
+```jsonc
+{
+  "mcpServers": {
+    "omada": {
+      "command": "node",
+      "args": ["/abs/path/to/omada-mcp/dist/index.js"],
+      "cwd": "/abs/path/to/omada-mcp"
+    }
+  }
+}
+```
+
+`cwd` matters — the server reads `.env` from the working directory.
+
+#### Option B — Local Docker build
+
+If you'd rather not have Node installed locally:
+
+```sh
+docker build -t omada-mcp:local .
+```
+
+This builds the image **on your machine** with the tag `omada-mcp:local`.
+No registry is involved. Then in your MCP-client config:
 
 ```jsonc
 {
   "mcpServers": {
     "omada": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "--env-file", "/abs/path/to/.env",
-               "ghcr.io/<owner>/omada-mcp:latest"]
+      "args": ["run", "-i", "--rm",
+               "--env-file", "/abs/path/to/omada-mcp/.env",
+               "omada-mcp:local"]
     }
   }
 }
 ```
 
-### 3b. Run from source
+The MCP client runs `docker run -i --rm` per session; the container exits
+when the session ends.
 
-```sh
-npm install
-npm run build
-node dist/index.js
-```
+### Note on `ghcr.io/<owner>/omada-mcp:latest` references
+
+Some legacy snippets you may see reference an image tag like
+`ghcr.io/<owner>/omada-mcp:latest`. **That image does not exist** — it is a
+placeholder for a hypothetical published image on GitHub Container Registry.
+The CI workflow in this repo **builds the Docker image but does not push it
+anywhere** (`push: false`).
+
+You only need a public registry image if you want to install on multiple
+machines without each one rebuilding from source. To make that real you'd
+need to:
+
+1. Push this repo to GitHub under your own account/org (e.g. `your-name/omada-mcp`).
+2. Edit `.github/workflows/ci.yml` to add `permissions: packages: write`, a
+   `docker/login-action` step against `ghcr.io`, and flip `push: false` to
+   `push: true` with a real tag (`tags: ghcr.io/your-name/omada-mcp:latest`).
+3. Reference the resulting image at `ghcr.io/your-name/omada-mcp:latest`.
+
+For a single-laptop setup you don't need any of this — Option A or B above
+is the right path.
 
 ## Tool catalog
 
@@ -128,9 +201,9 @@ All read tools are tagged `safe-read`. Every write tool defaults to
 | `OMADA_VERIFY_TLS` | no | `true` | `false` for self-signed. |
 | `OMADA_TIMEOUT_MS` | no | `30000` | HTTP timeout. |
 | `OMADA_CAPABILITY_PROFILE` | no | `safe-read` | `safe-read` / `ops-write` / `admin`. |
-| `MCP_TRANSPORT` | no | `stdio` | `stdio` or `http`. |
-| `MCP_HTTP_ENABLE` | no | `false` | Must be `true` AND `MCP_TRANSPORT=http` for HTTP. |
-| `MCP_HTTP_BIND` | no | `127.0.0.1` | Loopback by default. |
+| `MCP_TRANSPORT` | no | `stdio` | `stdio` only; setting `http` throws today. |
+| `MCP_HTTP_ENABLE` | no | `false` | Reserved for the future HTTP transport. |
+| `MCP_HTTP_BIND` | no | `127.0.0.1` | Loopback bind when HTTP lands. |
 | `MCP_HTTP_PORT` | no | `3000` | |
 | `LOG_LEVEL` | no | `info` | `debug` / `info` / `warn` / `error`. |
 
@@ -143,9 +216,9 @@ All read tools are tagged `safe-read`. Every write tool defaults to
 - Credentials are read only from env vars, never from tool arguments, never
   logged, never returned in tool output. The access token is registered with
   the logger so any accidental serialisation is masked.
-- HTTP transport is off unless both `MCP_TRANSPORT=http` and
-  `MCP_HTTP_ENABLE=true`. Loopback bind by default. (Implementation lands
-  in a future release.)
+- **Don't expose this server over a network in its current form.** HTTP
+  transport is not yet implemented and there is no authentication layer.
+  Run it locally as documented in *Quick start* above.
 
 ## Development
 

@@ -5,6 +5,17 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Docs
+
+- README is now explicit that this release is **local-only**: the server
+  speaks stdio only, HTTP transport is not implemented, and there is no
+  authentication layer in front of it. The Quick Start leads with the two
+  supported paths (Node directly, or a local Docker build) and explains
+  that the `ghcr.io/<owner>/omada-mcp:latest` references seen in some
+  snippets are placeholders for an image that does not exist.
+- `docker-compose.example.yml` is reframed as aspirational — the
+  `omada-mcp` service stays commented out until HTTP + auth land.
+
 ### Added
 
 - Multi-stage `Dockerfile` and `docker-compose.example.yml` paired with
