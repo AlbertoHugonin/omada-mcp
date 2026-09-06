@@ -5,72 +5,58 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `set_client_name` — governed client display-name update through the Omada
+  v1 client PATCH endpoint. Defaults to `dryRun: true`, is explicitly marked
+  non-destructive/idempotent for MCP clients such as Jarvis, and re-reads the
+  client after apply.
+- `set_client_fixed_ip` — set an explicit client fixed IPv4 address or omit the
+  address to preserve the client's current IPv4 value. Defaults to dry-run and
+  re-reads after apply.
+- Client read schema now retains `fixedIp` and `useFixedIp` when returned by
+  the controller.
+- Authenticated MCP **Streamable HTTP** transport at `/mcp`, suitable for
+  remote Jarvis integration.
+- HTTP mode requires both `MCP_HTTP_ENABLE=true` and `MCP_HTTP_API_KEY`; every
+  `/mcp` request is authenticated with `X-API-Key`.
+- Minimal unauthenticated `/healthz` liveness endpoint.
+- HTTP authentication and client-write tests.
+- `THIRD_PARTY_NOTICES.md` retaining the MIT notice relevant to adapted work.
+
+### Changed
+
+- Tool inventory is now 23 tools: 11 reads, 8 `ops-write`, and 4 `admin`.
+- `docker-compose.example.yml` now contains a working authenticated HTTP MCP
+  service instead of a future placeholder.
+- Docker image documents port 3000 with `EXPOSE` while preserving stdio as the
+  default transport.
+- README now documents both local stdio and remote Jarvis-compatible HTTP
+  deployments.
+
 ### Fixed
 
-- `.env` now loads when the server is launched by an MCP client (e.g.
-  Claude Desktop) that doesn't set the working directory. The config
-  loader now also looks beside the compiled entry point and at an
-  explicit `OMADA_DOTENV_PATH` override, in addition to `cwd`. Previously
-  the server would fail at startup with "Invalid configuration:
-  OMADA_BASE_URL: expected string, received undefined" because `.env`
-  wasn't discoverable from the launcher's working directory.
+- `.env` loads when the server is launched by an MCP client (e.g. Claude
+  Desktop) that doesn't set the working directory. The config loader also
+  looks beside the compiled entry point and at an explicit
+  `OMADA_DOTENV_PATH` override, in addition to `cwd`.
 
-### Docs
-
-- README is now explicit that this release is **local-only**: the server
-  speaks stdio only, HTTP transport is not implemented, and there is no
-  authentication layer in front of it. The Quick Start leads with the two
-  supported paths (Node directly, or a local Docker build) and explains
-  that the `ghcr.io/<owner>/omada-mcp:latest` references seen in some
-  snippets are placeholders for an image that does not exist.
-- `docker-compose.example.yml` is reframed as aspirational — the
-  `omada-mcp` service stays commented out until HTTP + auth land.
-
-### Added
+### Existing upstream additions
 
 - Multi-stage `Dockerfile` and `docker-compose.example.yml` paired with
   `mbentley/omada-controller`.
-- `vitest` suite covering capability gating, dry-run diffing, the OAuth2
-  token manager (caching, invalidation, concurrent-call coalescing),
-  HTTP errorCode handling and Zod shape validation.
-- Full `README.md` with the env-var table, tool catalog and security
-  notes; `CONTRIBUTING.md` and this `CHANGELOG.md`.
+- `vitest` suite covering capability gating, dry-run diffing, the OAuth2 token
+  manager, HTTP errorCode handling and Zod shape validation.
 - GitHub Actions CI: lint, typecheck, test and docker build.
-
-### Phase 4b — admin writes (continued)
-
-- `update_ssid` — modify SSID basic config (name, band, broadcast,
-  802.11r, PMF, VLAN) via the `update-basic-config` PATCH endpoint.
-- `update_ap_radio` — per-AP per-band radio config (channel, width,
-  Tx power, radio enable). Both verified live in dry-run.
-
-### Phase 4a — write tools + dry-run framework
-
-- Dry-run framework with diff helpers, action-preview, state-preview
-  and post-apply override report.
-- `ops-write` tier: `reboot_device`, `block_client`, `unblock_client`,
-  `reconnect_client`, `set_site_led`, `set_client_rate_limit`.
-- `admin` tier: `update_site_roaming`, `update_band_steering`.
-
-### Phase 2 — read tools
-
-- `list_devices`, `get_device`, `get_ap_radios`, `list_clients`,
-  `get_client`, `list_ssids`, `get_ssid`, `get_site_settings`,
-  `list_events`, `list_logs`.
-- Captured the official TP-Link Omada Open API v1 spec (OpenAPI 3.0.1,
-  1,802 endpoints) into `docs/openapi/` plus a tool→endpoint map.
-
-### Phase 1 — auth + first read tool
-
-- OAuth2 client-credentials token manager with caching, refresh and
-  concurrent-call coalescing.
-- Undici-based HTTP layer with per-client TLS toggle and Omada envelope
-  (`errorCode` / `msg` / `result`) handling.
-- Typed Open API client with tolerant Zod schemas.
-- `list_sites` — the first read tool; verified live against
-  Omada Controller 6.2.10.17.
-
-### Phase 0 — scaffold
-
-- Initial repo: strict TypeScript, Biome lint/format, MIT license, env
-  template (`.env.example`), minimal stdio MCP server with zero tools.
+- `update_ssid` and `update_ap_radio` admin writes.
+- Dry-run framework with diff helpers, action-preview, state-preview and
+  post-apply override report.
+- `ops-write` tier originally included `reboot_device`, `block_client`,
+  `unblock_client`, `reconnect_client`, `set_site_led`, and
+  `set_client_rate_limit`.
+- `admin` tier originally included `update_site_roaming` and
+  `update_band_steering`.
+- Read tools include `list_sites`, `list_devices`, `get_device`,
+  `get_ap_radios`, `list_clients`, `get_client`, `list_ssids`, `get_ssid`,
+  `get_site_settings`, `list_events`, and `list_logs`.
+- Captured the official TP-Link Omada Open API v1 spec into `docs/openapi/`.
