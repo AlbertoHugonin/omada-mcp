@@ -54,15 +54,15 @@ export async function startHttpServer(client: OmadaClient, config: Config): Prom
   if (!config.httpApiKey || config.httpApiKey.length < 16) {
     throw new Error("MCP_TRANSPORT=http requires MCP_HTTP_API_KEY with at least 16 characters");
   }
-
+  const expectedApiKey = config.httpApiKey;
   const sessions = new Map<string, SessionState>();
 
   const newSession = async (): Promise<SessionState> => {
-    let state: SessionState;
+    let state: SessionState | undefined;
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sessionId: string) => {
-        sessions.set(sessionId, state);
+        if (state) sessions.set(sessionId, state);
         logger.debug("MCP HTTP session initialized", { sessionId });
       },
       onsessionclosed: (sessionId: string) => {
@@ -78,6 +78,7 @@ export async function startHttpServer(client: OmadaClient, config: Config): Prom
 
   const httpServer = createNodeHttpServer((req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
+      let newState: SessionState | undefined;
       try {
         const host = req.headers.host ?? `${config.httpBind}:${config.httpPort}`;
         const url = new URL(req.url ?? "/", `http://${host}`);
@@ -92,7 +93,7 @@ export async function startHttpServer(client: OmadaClient, config: Config): Prom
         }
 
         const apiKey = firstHeader(req.headers["x-api-key"]);
-        if (!apiKeyMatches(apiKey, config.httpApiKey as string)) {
+        if (!apiKeyMatches(apiKey, expectedApiKey)) {
           res.setHeader("WWW-Authenticate", "ApiKey");
           sendJson(res, 401, { error: "Unauthorized" });
           return;
@@ -112,11 +113,22 @@ export async function startHttpServer(client: OmadaClient, config: Config): Prom
           }
           state = existing;
         } else {
-          state = await newSession();
+          newState = await newSession();
+          state = newState;
         }
 
         await state.transport.handleRequest(req, res);
+
+        // A request without a session header is expected to initialize one.
+        // If it did not, discard the temporary MCP server instead of leaking it.
+        if (newState && !newState.transport.sessionId) {
+          await newState.server.close();
+          newState = undefined;
+        }
       } catch (error) {
+        if (newState && !newState.transport.sessionId) {
+          await newState.server.close().catch(() => undefined);
+        }
         logger.error("MCP HTTP request failed", {
           error: error instanceof Error ? error.message : String(error),
         });
