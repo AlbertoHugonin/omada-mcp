@@ -1,91 +1,74 @@
 # omada-mcp
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for the
-**TP-Link Omada SDN Controller**. It lets an AI assistant read and safely
-modify an Omada network through well-defined, capability-gated tools.
+**TP-Link Omada SDN Controller**. It lets an MCP client read and safely modify
+an Omada network through explicit, capability-gated tools.
 
-Built as a security-first companion to
-[`mbentley/docker-omada-controller`](https://github.com/mbentley/docker-omada-controller).
+This fork keeps the security-first design of `dfla-me/omada-mcp` and adds the
+small set of features needed for remote Jarvis integration:
 
-- Talks to the **Omada Open API** (OAuth2 client-credentials) — *not* the
-  internal cookie/CSRF API. The full v1 OpenAPI spec is captured in
-  [`docs/openapi/`](docs/openapi/).
-- **21 tools** covering reads (sites, devices, clients, SSIDs, site settings,
-  events, logs) and writes (reboot, block/unblock/reconnect client, rate
-  limit, LED, SSID config, AP radio config, site roaming, band steering).
-- **Capability profiles** gate what the assistant can do — `safe-read` is the
-  default and exposes only read tools. Writes require explicit opt-in via
-  env var.
-- Every write tool defaults to `dryRun: true` — preview the diff before
-  applying. After apply, the controller is re-read and any silent overrides
-  are surfaced.
+- **23 explicit tools** — no generic arbitrary-API escape hatch.
+- Omada **Open API** with OAuth2 client credentials; no cookie/CSRF scraping.
+- `safe-read`, `ops-write`, and `admin` capability profiles.
+- Every write defaults to `dryRun: true` and state mutations are re-read after
+  apply whenever the Omada API exposes the resulting state.
+- Client identity management:
+  - `set_client_name`
+  - `set_client_fixed_ip`
+- Native **MCP Streamable HTTP** at `/mcp` for remote clients such as Jarvis.
+- HTTP mode requires an **`X-API-Key`** secret and an explicit enable switch.
+- `stdio` remains the default transport for local MCP clients.
 
-Verified against **Omada Controller 6.2.10.17** (`apiVer 3`).
-
-## Status — local use only
-
-> **This release is designed to run on the same machine as your MCP client
-> (e.g. your laptop running Claude Code or Claude Desktop). It is *not*
-> ready to be deployed as a long-lived service on your home server,
-> alongside the controller, or anywhere else network-reachable.**
->
-> Why:
->
-> - The server speaks **stdio only** today. Your MCP client launches it as a
->   subprocess per session and pipes JSON-RPC over stdin/stdout — there is
->   nothing to "connect to" over a network.
-> - **HTTP transport is scaffolded but not implemented.** The env-var plumbing
->   exists (`MCP_TRANSPORT`, `MCP_HTTP_ENABLE`, `MCP_HTTP_BIND`,
->   `MCP_HTTP_PORT`) so future work doesn't reshape the project — but today
->   setting `MCP_TRANSPORT=http` throws a clear "use stdio" error.
-> - **There is no authentication in front of the server.** If HTTP were
->   enabled today, anything reaching its port could invoke the write tools.
->   A safe hosted deployment needs at minimum Bearer-token auth plus a
->   nginx / VPN topology in front; that's a focused next phase, not a
->   deploy-it-as-is.
->
-> So: even though `docker-compose.example.yml` shows the eventual pairing
-> with `mbentley/omada-controller`, the only currently-supported deployment
-> is **run it locally**, beside whatever MCP client is using it.
+The original implementation was verified against **Omada Controller
+6.2.10.17** (`apiVer 3`). The new client-update endpoint follows the Omada v1
+Open API surface also used by the referenced Omada MCP implementations; live
+validation against the target controller should still be performed before
+using write mode in production.
 
 ## Quick start
 
-### 1. Create an Open API client in the controller
+### 1. Create an Omada Open API client
 
-Follow [`docs/SETUP.md`](docs/SETUP.md): in the controller go to
-**Settings → Platform Integration → Open API**, create a client-credentials
-app, and capture the **client ID**, **client secret** and **omadacId**.
+In the Omada controller open **Settings → Platform Integration → Open API**,
+create a client-credentials application, and record:
+
+- client ID
+- client secret
+- `omadacId`
+
+See [`docs/SETUP.md`](docs/SETUP.md) for details.
 
 ### 2. Configure `.env`
 
-Copy `.env.example` to `.env` in the repo root and fill in:
+```sh
+cp .env.example .env
+```
+
+Minimum Omada configuration:
 
 ```ini
 OMADA_BASE_URL=https://omada.local:8043
 OMADA_CLIENT_ID=...
 OMADA_CLIENT_SECRET=...
 OMADA_OMADAC_ID=...
-OMADA_SITE_ID=...                    # optional; tools require an explicit siteId otherwise
-OMADA_VERIFY_TLS=false               # for self-signed controller certs
+OMADA_SITE_ID=...                    # optional
+OMADA_VERIFY_TLS=true
 OMADA_CAPABILITY_PROFILE=safe-read   # safe-read | ops-write | admin
 ```
 
-`.env` is git-ignored. Keep it on the machine that will run the server.
+`.env` is git-ignored and must never be committed.
 
-### 3. Pick a way to run it (choose ONE)
+## Local stdio mode
 
-Both options run the server **on whatever machine the MCP client is on**.
-There's no operational difference — pick whichever you find simpler.
-
-#### Option A — Node directly (recommended; no Docker needed)
+`stdio` is the default and preserves upstream behavior.
 
 ```sh
 npm install
 npm run build
+npm start
 ```
 
-Then point your MCP client at the compiled entry point. For Claude Desktop
-that means editing `claude_desktop_config.json`:
+Example MCP-client configuration:
 
 ```jsonc
 {
@@ -98,181 +81,248 @@ that means editing `claude_desktop_config.json`:
 }
 ```
 
-The server finds `.env` automatically — it looks next to the compiled
-entry point (i.e. `<repo>/dist/index.js` → `<repo>/.env`), then in the
-working directory, then at whatever path `OMADA_DOTENV_PATH` points at.
-Any one of those three is enough.
+The server looks for `.env` in the current working directory, next to the
+project root resolved from the compiled entry point, or at
+`OMADA_DOTENV_PATH` when explicitly provided.
 
-> If the server starts but fails with "Invalid configuration: …" telling
-> you the required vars are `undefined`, your `.env` is not where it's
-> looking. Either move/copy `.env` next to `dist/index.js`, or set
-> `OMADA_DOTENV_PATH` explicitly:
->
-> ```jsonc
-> {
->   "mcpServers": {
->     "omada": {
->       "command": "node",
->       "args": ["/abs/path/to/omada-mcp/dist/index.js"],
->       "env": {
->         "OMADA_DOTENV_PATH": "/abs/path/to/omada-mcp/.env"
->       }
->     }
->   }
-> }
-> ```
->
-> The MCP client's `env` block is also a perfectly good place to put the
-> Omada config inline if you'd rather not keep a `.env` file at all —
-> e.g. set `OMADA_BASE_URL`, `OMADA_CLIENT_ID`, `OMADA_CLIENT_SECRET`,
-> `OMADA_OMADAC_ID` directly there.
+## Remote Streamable HTTP mode
 
-#### Option B — Local Docker build
+This mode is intended for Jarvis or another MCP client running on a different
+host/container.
 
-If you'd rather not have Node installed locally:
+Generate a secret, for example:
+
+```sh
+openssl rand -hex 32
+```
+
+Then configure:
+
+```ini
+MCP_TRANSPORT=http
+MCP_HTTP_ENABLE=true
+MCP_HTTP_BIND=0.0.0.0
+MCP_HTTP_PORT=3000
+MCP_HTTP_API_KEY=<long-random-secret>
+```
+
+The MCP endpoint is:
+
+```text
+http://<omada-mcp-host>:3000/mcp
+```
+
+Every MCP request must contain:
+
+```text
+X-API-Key: <MCP_HTTP_API_KEY>
+```
+
+A static liveness endpoint is available at:
+
+```text
+GET /healthz
+```
+
+`/healthz` intentionally does not require authentication and returns only a
+minimal `{ "status": "ok" }` response.
+
+HTTP mode will refuse to start unless both `MCP_HTTP_ENABLE=true` and an API
+key of at least 16 characters are configured. The API key is registered with
+the logger's secret-redaction mechanism.
+
+### Docker
+
+Build locally:
 
 ```sh
 docker build -t omada-mcp:local .
 ```
 
-This builds the image **on your machine** with the tag `omada-mcp:local`.
-No registry is involved. Then in your MCP-client config:
+For a long-running remote MCP service, `docker-compose.example.yml` now
+contains an authenticated Streamable HTTP example. Its port mapping is bound
+to loopback by default; change that only when Jarvis is on another trusted
+host and protect the port with the host/network firewall.
 
-```jsonc
-{
-  "mcpServers": {
-    "omada": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm",
-               "--env-file", "/abs/path/to/omada-mcp/.env",
-               "omada-mcp:local"]
-    }
-  }
-}
+## Jarvis integration profile
+
+The intended Jarvis deployment is:
+
+```text
+Jarvis dynamic MCP
+        │
+        │ Streamable HTTP + X-API-Key
+        ▼
+omada-mcp
+        │
+        │ Omada Open API + OAuth2 client credentials
+        ▼
+Omada Controller
 ```
 
-The MCP client runs `docker run -i --rm` per session; the container exits
-when the session ends.
+Recommended Omada MCP capability profile for Jarvis:
 
-### Note on `ghcr.io/<owner>/omada-mcp:latest` references
+```ini
+OMADA_CAPABILITY_PROFILE=ops-write
+```
 
-Some legacy snippets you may see reference an image tag like
-`ghcr.io/<owner>/omada-mcp:latest`. **That image does not exist** — it is a
-placeholder for a hypothetical published image on GitHub Container Registry.
-The CI workflow in this repo **builds the Docker image but does not push it
-anywhere** (`push: false`).
+This exposes reads plus low-risk operational writes, including the two client
+management tools, while keeping the `admin` network/Wi-Fi configuration tools
+hidden until explicitly enabled.
 
-You only need a public registry image if you want to install on multiple
-machines without each one rebuilding from source. To make that real you'd
-need to:
+The client-management tools advertise MCP annotations compatible with
+Jarvis's dynamic risk model:
 
-1. Push this repo to GitHub under your own account/org (e.g. `your-name/omada-mcp`).
-2. Edit `.github/workflows/ci.yml` to add `permissions: packages: write`, a
-   `docker/login-action` step against `ghcr.io`, and flip `push: false` to
-   `push: true` with a real tag (`tags: ghcr.io/your-name/omada-mcp:latest`).
-3. Reference the resulting image at `ghcr.io/your-name/omada-mcp:latest`.
+- `readOnlyHint: false`
+- `destructiveHint: false`
+- `idempotentHint: true`
 
-For a single-laptop setup you don't need any of this — Option A or B above
-is the right path.
+They therefore remain governed **WRITE** capabilities rather than being
+misclassified as destructive operations.
 
 ## Tool catalog
 
-All read tools are tagged `safe-read`. Every write tool defaults to
-`dryRun: true` — pass `dryRun: false` to apply.
+All writes default to `dryRun: true`; pass `dryRun: false` to apply.
 
 ### Read (`safe-read`)
 
 | Tool | Purpose |
 |---|---|
 | `list_sites` | List sites on the controller. |
-| `list_devices` | APs / switches / gateway at a site, with status & firmware. |
-| `get_device` | Per-device detail; for APs, also per-band radio config. |
-| `get_ap_radios` | Per-band radio settings on one AP. |
-| `list_clients` | Connected clients with SSID, AP, RSSI, traffic. Summary counts. |
-| `get_client` | Full client detail. |
+| `list_devices` | APs, switches and gateways at a site. |
+| `get_device` | Per-device detail; APs also expose radio config. |
+| `get_ap_radios` | Per-band AP radio settings. |
+| `list_clients` | Connected clients, network attachment and traffic summary. |
+| `get_client` | Full client detail, including fixed-IP state when returned by Omada. |
 | `list_ssids` | SSIDs grouped by WLAN group. |
 | `get_ssid` | Full SSID configuration. |
-| `get_site_settings` | Aggregate roaming + band-steering + mesh. |
+| `get_site_settings` | Roaming, band-steering and mesh settings. |
 | `list_events` | Site event log within a time window. |
-| `list_logs` | Site alert log (with `resolved` filter). |
+| `list_logs` | Site alert log. |
 
 ### Operational writes (`ops-write`)
 
 | Tool | Purpose |
 |---|---|
-| `reboot_device` | Reboot one AP / switch / gateway. |
-| `block_client` / `unblock_client` | Block / allow a client by MAC. |
+| `reboot_device` | Reboot one AP, switch or gateway. |
+| `block_client` / `unblock_client` | Block or allow a client by MAC. |
 | `reconnect_client` | Force a client to re-associate. |
-| `set_client_rate_limit` | Per-client up / down bandwidth limit. |
-| `set_site_led` | Site-wide LED on / off. |
+| `set_site_led` | Site-wide LED on/off. |
+| `set_client_name` | Change the Omada display name of a client. |
+| `set_client_fixed_ip` | Set a client fixed IPv4 address; if omitted, preserve its current IPv4 address. |
+| `set_client_rate_limit` | Per-client upload/download bandwidth limits. |
 
 ### Admin writes (`admin`)
 
 | Tool | Purpose |
 |---|---|
-| `update_site_roaming` | Fast roaming, AI roaming, force-disassociation, non-stick. |
+| `update_site_roaming` | Fast roaming, AI roaming, force-disassociation and non-stick settings. |
 | `update_band_steering` | Site band-steering mode. |
-| `update_ssid` | Modify SSID basic config (name, band, broadcast, 802.11r, PMF, VLAN). |
-| `update_ap_radio` | Per-AP per-band: channel, width, Tx power, radio enable. |
+| `update_ssid` | Modify SSID basic configuration including name, band, broadcast, 802.11r, PMF and VLAN. |
+| `update_ap_radio` | Per-AP/per-band channel, width, Tx power and radio enable. |
+
+## Client management behavior
+
+### `set_client_name`
+
+Arguments:
+
+```text
+clientMac   required
+name        required
+dryRun      optional, defaults true
+siteId      optional when OMADA_SITE_ID is configured
+```
+
+Apply flow:
+
+```text
+GET client → diff → PATCH client name → GET client → report actual state
+```
+
+### `set_client_fixed_ip`
+
+Arguments:
+
+```text
+clientMac   required
+fixedIp     optional IPv4 address
+dryRun      optional, defaults true
+siteId      optional when OMADA_SITE_ID is configured
+```
+
+When `fixedIp` is omitted, the tool reads the client's current IPv4 address
+and uses that value. This allows requests such as "make the printer's current
+IP fixed" without requiring the caller to know the address in advance.
+
+Apply flow:
+
+```text
+GET client → choose/validate IPv4 → diff → PATCH fixedIp → GET client → report actual state
+```
+
+If the client has no current IPv4 address and no `fixedIp` was supplied, the
+tool fails without sending a mutation.
 
 ## Environment variables
 
 | Variable | Required | Default | Notes |
 |---|---|---|---|
-| `OMADA_BASE_URL` | yes | — | Controller URL, no trailing slash. |
-| `OMADA_CLIENT_ID` | yes | — | From the Open API app. |
-| `OMADA_CLIENT_SECRET` | yes | — | From the Open API app. Never logged. |
+| `OMADA_BASE_URL` | yes | — | Controller URL. |
+| `OMADA_CLIENT_ID` | yes | — | Open API client ID. |
+| `OMADA_CLIENT_SECRET` | yes | — | Open API client secret; redacted from logs. |
 | `OMADA_OMADAC_ID` | yes | — | Controller ID. |
-| `OMADA_SITE_ID` | no | — | Default site; otherwise tools need `siteId`. |
-| `OMADA_VERIFY_TLS` | no | `true` | `false` for self-signed. |
-| `OMADA_TIMEOUT_MS` | no | `30000` | HTTP timeout. |
-| `OMADA_CAPABILITY_PROFILE` | no | `safe-read` | `safe-read` / `ops-write` / `admin`. |
-| `MCP_TRANSPORT` | no | `stdio` | `stdio` only; setting `http` throws today. |
-| `MCP_HTTP_ENABLE` | no | `false` | Reserved for the future HTTP transport. |
-| `MCP_HTTP_BIND` | no | `127.0.0.1` | Loopback bind when HTTP lands. |
-| `MCP_HTTP_PORT` | no | `3000` | |
-| `LOG_LEVEL` | no | `info` | `debug` / `info` / `warn` / `error`. |
-| `OMADA_DOTENV_PATH` | no | — | Explicit override path to a `.env` file. Useful when the MCP client launches the server without a predictable `cwd`. |
+| `OMADA_SITE_ID` | no | — | Default site; otherwise tools require `siteId`. |
+| `OMADA_VERIFY_TLS` | no | `true` | Disable only when required for a trusted self-signed controller certificate. |
+| `OMADA_TIMEOUT_MS` | no | `30000` | Omada HTTP timeout. |
+| `OMADA_CAPABILITY_PROFILE` | no | `safe-read` | `safe-read`, `ops-write`, or `admin`. |
+| `MCP_TRANSPORT` | no | `stdio` | `stdio` or `http`. |
+| `MCP_HTTP_ENABLE` | no | `false` | Required explicit opt-in for HTTP mode. |
+| `MCP_HTTP_BIND` | no | `127.0.0.1` | Bind address for HTTP mode. |
+| `MCP_HTTP_PORT` | no | `3000` | `/mcp` and `/healthz`. |
+| `MCP_HTTP_API_KEY` | HTTP only | — | Required for HTTP mode; minimum 16 characters. Sent by clients as `X-API-Key`. |
+| `LOG_LEVEL` | no | `info` | `debug`, `info`, `warn`, `error`. |
+| `OMADA_DOTENV_PATH` | no | — | Explicit `.env` path override. |
 
-## Security
+## Security model
 
-- Default profile is `safe-read` — writes require an explicit env-var opt-in.
-- Every write tool defaults to `dryRun: true`. Apply mode performs a
-  GET-merge-PATCH and **re-reads** to surface any controller-side overrides
-  (mutually-exclusive settings, silent rejections).
-- Credentials are read only from env vars, never from tool arguments, never
-  logged, never returned in tool output. The access token is registered with
-  the logger so any accidental serialisation is masked.
-- **Don't expose this server over a network in its current form.** HTTP
-  transport is not yet implemented and there is no authentication layer.
-  Run it locally as documented in *Quick start* above.
+- `safe-read` is the default capability profile.
+- Write tools are absent from the MCP inventory unless their capability tier
+  is enabled.
+- Writes default to `dryRun: true`.
+- There is no generic tool that accepts an arbitrary Omada endpoint.
+- Omada credentials are environment-only and never tool arguments.
+- HTTP MCP traffic requires `X-API-Key` on every `/mcp` request.
+- API secrets are registered for log redaction.
+- The HTTP service should still be restricted to a trusted LAN/VPN/firewall;
+  application authentication is not a substitute for network isolation.
 
 ## Development
 
 ```sh
 npm install
-npm run build         # tsc
-npm run typecheck     # tsc --noEmit
-npm run lint          # biome check
-npm run test          # vitest
+npm run build
+npm run typecheck
+npm run lint
+npm run test
 ```
 
-`docs/openapi/` holds the captured TP-Link Omada Open API v1 spec
-(`omada-open-api-v1-spec.json`, OpenAPI 3.0.1) and an `endpoint-map.md`
-documenting which Open API endpoint backs each MCP tool.
+CI runs lint, typecheck, tests and a Docker build.
 
-## Prior art
+`docs/openapi/` contains the captured TP-Link Omada Open API v1 specification
+and endpoint notes.
 
-Three other Omada MCP projects were consulted as references during the
-design (all MIT):
+## Prior art and attribution
+
+The project builds on `dfla-me/omada-mcp`. The client update and Streamable
+HTTP work was informed by other MIT-licensed Omada MCP implementations,
+including:
 
 - [`MiguelTVMS/tplink-omada-mcp`](https://github.com/MiguelTVMS/tplink-omada-mcp)
 - [`realtydev/omada-mcp`](https://github.com/realtydev/omada-mcp)
 - [`gaspareduard/Omada-mcp`](https://github.com/gaspareduard/Omada-mcp)
 
-`omada-mcp` is independent code; the differentiator is the security-first
-capability tiers, the dry-run framework with post-apply re-read, and
-first-class write coverage of SSID / AP-radio / site-roaming config.
+See `THIRD_PARTY_NOTICES.md` for retained notices relevant to adapted work.
 
 ## License
 

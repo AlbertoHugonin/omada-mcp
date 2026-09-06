@@ -95,6 +95,8 @@ export const clientSchema = z.object({
   osName: z.string().optional(),
   model: z.string().optional(),
   ip: z.string().optional(),
+  fixedIp: z.string().optional(),
+  useFixedIp: z.boolean().optional(),
   ipv6List: z.array(z.string()).optional(),
   connectType: z.number().optional(),
   connectDevType: z.string().optional(),

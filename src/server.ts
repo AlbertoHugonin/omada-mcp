@@ -1,29 +1,31 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig } from "./config.js";
+import { startHttpServer } from "./httpServer.js";
 import { logger, registerSecret, setLogLevel } from "./logger.js";
 import { OmadaClient } from "./omada/client.js";
+import { SERVER_NAME, SERVER_VERSION } from "./serverInfo.js";
 import { registerTools } from "./tools/registry.js";
 
-export const SERVER_NAME = "omada-mcp";
-export const SERVER_VERSION = "0.1.0";
+export { SERVER_NAME, SERVER_VERSION } from "./serverInfo.js";
 
 /**
  * Boots the MCP server: load config, build the Omada client, register the
- * capability-gated tools and connect a transport.
+ * capability-gated tools and connect the requested transport.
  */
 export async function startServer(): Promise<void> {
   const config = loadConfig();
   setLogLevel(config.logLevel);
   registerSecret(config.clientSecret);
-
-  if (config.transport === "http") {
-    throw new Error(
-      "HTTP transport is not implemented yet — use MCP_TRANSPORT=stdio (HTTP arrives in Phase 5).",
-    );
-  }
+  if (config.httpApiKey) registerSecret(config.httpApiKey);
 
   const client = new OmadaClient(config);
+
+  if (config.transport === "http") {
+    await startHttpServer(client, config);
+    return;
+  }
+
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   registerTools(server, { client, config });
 
