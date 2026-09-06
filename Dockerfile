@@ -35,6 +35,9 @@ COPY package.json ./
 
 USER omada
 
-# Default transport is stdio. For HTTP transport (when enabled) set
-# MCP_TRANSPORT=http and MCP_HTTP_ENABLE=true, and expose MCP_HTTP_PORT.
+# Informational only; Docker does not publish this port unless explicitly mapped.
+EXPOSE 3000
+
+# Default transport is stdio. For authenticated Streamable HTTP set
+# MCP_TRANSPORT=http, MCP_HTTP_ENABLE=true and MCP_HTTP_API_KEY.
 ENTRYPOINT ["node", "dist/index.js"]
