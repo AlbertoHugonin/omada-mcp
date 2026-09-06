@@ -53,6 +53,11 @@ export interface AlertQueryOpts extends LogQueryOpts {
   resolved?: boolean;
 }
 
+export interface ClientUpdate {
+  name?: string;
+  fixedIp?: string;
+}
+
 /** Typed, thin wrapper over the Omada Open API. */
 export class OmadaClient {
   private readonly http: HttpClient;
@@ -159,6 +164,14 @@ export class OmadaClient {
   async getClient(siteId: string, clientMac: string): Promise<Client> {
     const raw = await this.authedRequest(this.sitePath(siteId, `/clients/${clientMac}`));
     return parseApiResult(clientSchema, raw, `GET /sites/{siteId}/clients/${clientMac}`);
+  }
+
+  /** Update supported client identity/address settings using the Omada v1 API. */
+  async updateClient(siteId: string, clientMac: string, body: ClientUpdate): Promise<void> {
+    await this.authedRequest(
+      this.sitePath(siteId, `/clients/${encodeURIComponent(clientMac)}`),
+      { method: "PATCH", body },
+    );
   }
 
   // ─── SSIDs / WLAN groups ──────────────────────────────────────────────────
