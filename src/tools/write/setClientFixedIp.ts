@@ -53,11 +53,8 @@ export const setClientFixedIpTool: ToolModule = {
             );
           }
 
-          const before = {
-            fixedIp: client.fixedIp ?? null,
-            useFixedIp: client.useFixedIp ?? false,
-          };
-          const proposed = { fixedIp, useFixedIp: true };
+          const before = { fixedIp: client.fixedIp ?? null };
+          const proposed = { fixedIp };
           const changes = diff(before, proposed);
           const target = `${client.name ?? client.hostName ?? client.mac} [${client.mac}]`;
 
@@ -67,10 +64,7 @@ export const setClientFixedIpTool: ToolModule = {
 
           await ctx.client.updateClient(siteId, args.clientMac, { fixedIp });
           const after = await ctx.client.getClient(siteId, args.clientMac);
-          const actual = {
-            fixedIp: after.fixedIp ?? null,
-            useFixedIp: after.useFixedIp ?? false,
-          };
+          const actual = { fixedIp: after.fixedIp ?? null };
 
           return [
             statePreview({ what: "client fixed IP", target, changes, dryRun: false }),
