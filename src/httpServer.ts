@@ -5,7 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import type { Config } from "./config.js";
 import { logger } from "./logger.js";
 import type { OmadaClient } from "./omada/client.js";
-import { SERVER_NAME, SERVER_VERSION } from "./server.js";
+import { SERVER_NAME, SERVER_VERSION } from "./serverInfo.js";
 import { registerTools } from "./tools/registry.js";
 
 const MCP_PATH = "/mcp";
