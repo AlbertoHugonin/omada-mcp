@@ -168,10 +168,10 @@ export class OmadaClient {
 
   /** Update supported client identity/address settings using the Omada v1 API. */
   async updateClient(siteId: string, clientMac: string, body: ClientUpdate): Promise<void> {
-    await this.authedRequest(
-      this.sitePath(siteId, `/clients/${encodeURIComponent(clientMac)}`),
-      { method: "PATCH", body },
-    );
+    await this.authedRequest(this.sitePath(siteId, `/clients/${encodeURIComponent(clientMac)}`), {
+      method: "PATCH",
+      body,
+    });
   }
 
   // ─── SSIDs / WLAN groups ──────────────────────────────────────────────────
