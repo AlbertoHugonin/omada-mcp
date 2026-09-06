@@ -63,15 +63,19 @@ function envInt(def: number) {
     .pipe(z.number().int().positive());
 }
 
+function envOptionalString() {
+  return z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() !== "" ? v.trim() : undefined));
+}
+
 const EnvSchema = z.object({
   OMADA_BASE_URL: z.string().min(1),
   OMADA_CLIENT_ID: z.string().min(1),
   OMADA_CLIENT_SECRET: z.string().min(1),
   OMADA_OMADAC_ID: z.string().min(1),
-  OMADA_SITE_ID: z
-    .string()
-    .optional()
-    .transform((v) => (v && v.trim() !== "" ? v.trim() : undefined)),
+  OMADA_SITE_ID: envOptionalString(),
   OMADA_VERIFY_TLS: envBoolean(true),
   OMADA_TIMEOUT_MS: envInt(30_000),
   OMADA_CAPABILITY_PROFILE: z.enum(CAPABILITY_PROFILES).default("safe-read"),
@@ -79,6 +83,7 @@ const EnvSchema = z.object({
   MCP_HTTP_ENABLE: envBoolean(false),
   MCP_HTTP_BIND: z.string().min(1).default("127.0.0.1"),
   MCP_HTTP_PORT: envInt(3000),
+  MCP_HTTP_API_KEY: envOptionalString(),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
 
@@ -95,6 +100,7 @@ export interface Config {
   httpEnable: boolean;
   httpBind: string;
   httpPort: number;
+  httpApiKey: string | undefined;
   logLevel: LogLevel;
 }
 
@@ -137,6 +143,7 @@ export function loadConfig(): Config {
     httpEnable: env.MCP_HTTP_ENABLE,
     httpBind: env.MCP_HTTP_BIND,
     httpPort: env.MCP_HTTP_PORT,
+    httpApiKey: env.MCP_HTTP_API_KEY,
     logLevel: env.LOG_LEVEL,
   };
 }
