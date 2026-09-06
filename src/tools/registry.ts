@@ -16,6 +16,8 @@ import type { ToolContext, ToolModule } from "./types.js";
 import { blockClientTool } from "./write/blockClient.js";
 import { rebootDeviceTool } from "./write/rebootDevice.js";
 import { reconnectClientTool } from "./write/reconnectClient.js";
+import { setClientFixedIpTool } from "./write/setClientFixedIp.js";
+import { setClientNameTool } from "./write/setClientName.js";
 import { setClientRateLimitTool } from "./write/setClientRateLimit.js";
 import { setSiteLedTool } from "./write/setSiteLed.js";
 import { unblockClientTool } from "./write/unblockClient.js";
@@ -44,6 +46,8 @@ const ALL_TOOLS: readonly ToolModule[] = [
   unblockClientTool,
   reconnectClientTool,
   setSiteLedTool,
+  setClientNameTool,
+  setClientFixedIpTool,
   setClientRateLimitTool,
   // admin
   updateSiteRoamingTool,
