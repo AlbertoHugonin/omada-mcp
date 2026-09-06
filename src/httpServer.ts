@@ -1,5 +1,9 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
-import { createServer as createNodeHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer as createNodeHttpServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Config } from "./config.js";
