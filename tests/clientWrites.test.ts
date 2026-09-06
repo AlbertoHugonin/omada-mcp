@@ -9,11 +9,18 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
   isError?: boolean;
 }>;
 
-function registerTool(tool: typeof setClientNameTool | typeof setClientFixedIpTool, ctx: ToolContext) {
+function registerTool(
+  tool: typeof setClientNameTool | typeof setClientFixedIpTool,
+  ctx: ToolContext,
+) {
   let handler: ToolHandler | undefined;
   let metadata: Record<string, unknown> | undefined;
   const server = {
-    registerTool: (_name: string, toolMetadata: Record<string, unknown>, toolHandler: ToolHandler) => {
+    registerTool: (
+      _name: string,
+      toolMetadata: Record<string, unknown>,
+      toolHandler: ToolHandler,
+    ) => {
       metadata = toolMetadata;
       handler = toolHandler;
     },
