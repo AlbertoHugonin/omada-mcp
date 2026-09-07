@@ -5,11 +5,7 @@ vi.mock("undici", () => {
   return {
     // Agent must be constructable (`new Agent(...)`), so use a class rather
     // than vi.fn() — vi.fn-derived stubs don't satisfy `new`.
-    Agent: class FakeAgent {
-      constructor(_options?: unknown) {
-        // intentionally empty
-      }
-    },
+    Agent: class FakeAgent {},
     fetch: vi.fn(),
   };
 });
