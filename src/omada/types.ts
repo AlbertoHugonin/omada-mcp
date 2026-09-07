@@ -149,6 +149,25 @@ export const clientsResponseSchema = z.object({
 });
 export type ClientsResponse = z.infer<typeof clientsResponseSchema>;
 
+/** A row in the historical known-client insight list. */
+export const knownClientSchema = z
+  .object({
+    mac: z.string(),
+    name: z.string().optional(),
+    hostName: z.string().optional(),
+    ip: z.string().optional(),
+    lastSeen: z.number().optional(),
+    active: z.boolean().optional(),
+    guest: z.boolean().optional(),
+    wireless: z.boolean().optional(),
+    ssid: z.string().optional(),
+  })
+  .passthrough();
+export type KnownClient = z.infer<typeof knownClientSchema>;
+
+export const knownClientsResponseSchema = paginatedSchema(knownClientSchema);
+export type KnownClientsResponse = z.infer<typeof knownClientsResponseSchema>;
+
 // ─── SSIDs / WLAN groups ────────────────────────────────────────────────────
 
 /** WLAN group from `GET /sites/{siteId}/wireless-network/wlans`. */

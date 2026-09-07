@@ -21,6 +21,8 @@ import {
   deviceListItemSchema,
   type EventLogResponse,
   eventLogResponseSchema,
+  type KnownClientsResponse,
+  knownClientsResponseSchema,
   type MeshSetting,
   meshSettingSchema,
   paginatedSchema,
@@ -160,6 +162,14 @@ export class OmadaClient {
       query: { page: opts.page ?? 1, pageSize: opts.pageSize ?? 100 },
     });
     return parseApiResult(clientsResponseSchema, raw, "GET /sites/{siteId}/clients");
+  }
+
+  /** Historical known clients from the independent Site Insight endpoint. */
+  async listKnownClients(siteId: string, opts: ListOpts = {}): Promise<KnownClientsResponse> {
+    const raw = await this.authedRequest(this.sitePath(siteId, "/insight/clients"), {
+      query: { page: opts.page ?? 1, pageSize: opts.pageSize ?? 100 },
+    });
+    return parseApiResult(knownClientsResponseSchema, raw, "GET /sites/{siteId}/insight/clients");
   }
 
   /** Full detail for one client. */

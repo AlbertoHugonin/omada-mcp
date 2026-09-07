@@ -7,7 +7,7 @@ an Omada network through explicit, capability-gated tools.
 This fork keeps the security-first design of `dfla-me/omada-mcp` and adds the
 small set of features needed for remote Jarvis integration:
 
-- **23 explicit tools** — no generic arbitrary-API escape hatch.
+- **24 explicit tools** — no generic arbitrary-API escape hatch.
 - Omada **Open API** with OAuth2 client credentials; no cookie/CSRF scraping.
 - `safe-read`, `ops-write`, and `admin` capability profiles.
 - Every write defaults to `dryRun: true` and state mutations are re-read after
@@ -193,6 +193,7 @@ All writes default to `dryRun: true`; pass `dryRun: false` to apply.
 | `get_device` | Per-device detail; APs also expose radio config. |
 | `get_ap_radios` | Per-band AP radio settings. |
 | `list_clients` | Connected clients, network attachment and traffic summary. |
+| `list_known_clients` | Historical clients known to the site through the independent Site Insight endpoint. |
 | `get_client` | Full client detail, including fixed-IP state when returned by Omada. |
 | `list_ssids` | SSIDs grouped by WLAN group. |
 | `get_ssid` | Full SSID configuration. |
