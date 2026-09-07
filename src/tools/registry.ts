@@ -9,6 +9,7 @@ import { getSsidTool } from "./read/getSsid.js";
 import { listClientsTool } from "./read/listClients.js";
 import { listDevicesTool } from "./read/listDevices.js";
 import { listEventsTool } from "./read/listEvents.js";
+import { listKnownClientsTool } from "./read/listKnownClients.js";
 import { listLogsTool } from "./read/listLogs.js";
 import { listSitesTool } from "./read/listSites.js";
 import { listSsidsTool } from "./read/listSsids.js";
@@ -34,6 +35,7 @@ const ALL_TOOLS: readonly ToolModule[] = [
   getDeviceTool,
   getApRadiosTool,
   listClientsTool,
+  listKnownClientsTool,
   getClientTool,
   listSsidsTool,
   getSsidTool,
