@@ -273,7 +273,9 @@ tool fails without sending a mutation.
 | `OMADA_CLIENT_SECRET` | yes | — | Open API client secret; redacted from logs. |
 | `OMADA_OMADAC_ID` | yes | — | Controller ID. |
 | `OMADA_SITE_ID` | no | — | Default site; otherwise tools require `siteId`. |
-| `OMADA_VERIFY_TLS` | no | `true` | Disable only when required for a trusted self-signed controller certificate. |
+| `OMADA_VERIFY_TLS` | no | `true` | Keep certificate verification enabled. |
+| `OMADA_TLS_CA_FILE` | no | — | PEM CA/self-signed certificate used to trust a private controller certificate. |
+| `OMADA_TLS_CERT_SHA256` | no | — | Exact leaf SHA-256 pin; permits SAN-less legacy certificates without disabling CA verification. |
 | `OMADA_TIMEOUT_MS` | no | `30000` | Omada HTTP timeout. |
 | `OMADA_CAPABILITY_PROFILE` | no | `safe-read` | `safe-read`, `ops-write`, or `admin`. |
 | `MCP_TRANSPORT` | no | `stdio` | `stdio` or `http`. |

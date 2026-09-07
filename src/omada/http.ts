@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { Agent, fetch as undiciFetch } from "undici";
 import { logger } from "../logger.js";
 
@@ -37,6 +38,12 @@ export interface RequestOptions {
 export interface HttpClientOptions {
   verifyTls: boolean;
   timeoutMs: number;
+  tlsCaFile?: string;
+  tlsCertSha256?: string;
+}
+
+function normalizeFingerprint(value: string): string {
+  return value.replace(/:/g, "").toUpperCase();
 }
 
 interface Envelope {
@@ -66,10 +73,29 @@ export class HttpClient {
   private readonly dispatcher: Agent;
 
   constructor(private readonly options: HttpClientOptions) {
-    // A dedicated dispatcher lets TLS verification be toggled without touching
-    // global Node TLS settings (the controller often uses a self-signed cert).
+    // A dedicated dispatcher keeps controller TLS policy local to this client.
+    // A pinned fingerprint may intentionally replace hostname validation for
+    // legacy/self-signed Omada certificates without SAN, while the certificate
+    // chain still remains verified through rejectUnauthorized + the configured CA.
+    const expectedFingerprint = options.tlsCertSha256
+      ? normalizeFingerprint(options.tlsCertSha256)
+      : undefined;
+    const ca = options.tlsCaFile ? readFileSync(options.tlsCaFile) : undefined;
     this.dispatcher = new Agent({
-      connect: { rejectUnauthorized: options.verifyTls },
+      connect: {
+        rejectUnauthorized: options.verifyTls,
+        ...(ca ? { ca } : {}),
+        ...(expectedFingerprint
+          ? {
+              checkServerIdentity: (_hostname, cert) => {
+                const actual = normalizeFingerprint(cert.fingerprint256 ?? "");
+                return actual === expectedFingerprint
+                  ? undefined
+                  : new Error("Omada TLS certificate fingerprint mismatch");
+              },
+            }
+          : {}),
+      },
     });
   }
 
