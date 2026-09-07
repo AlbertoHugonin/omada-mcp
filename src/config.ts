@@ -77,6 +77,8 @@ const EnvSchema = z.object({
   OMADA_OMADAC_ID: z.string().min(1),
   OMADA_SITE_ID: envOptionalString(),
   OMADA_VERIFY_TLS: envBoolean(true),
+  OMADA_TLS_CA_FILE: envOptionalString(),
+  OMADA_TLS_CERT_SHA256: envOptionalString(),
   OMADA_TIMEOUT_MS: envInt(30_000),
   OMADA_CAPABILITY_PROFILE: z.enum(CAPABILITY_PROFILES).default("safe-read"),
   MCP_TRANSPORT: z.enum(["stdio", "http"]).default("stdio"),
@@ -94,6 +96,8 @@ export interface Config {
   omadacId: string;
   siteId: string | undefined;
   verifyTls: boolean;
+  tlsCaFile: string | undefined;
+  tlsCertSha256: string | undefined;
   timeoutMs: number;
   capabilityProfile: CapabilityProfile;
   transport: "stdio" | "http";
@@ -130,6 +134,18 @@ export function loadConfig(): Config {
     );
   }
 
+  const tlsCertSha256 = env.OMADA_TLS_CERT_SHA256?.replace(/:/g, "").toUpperCase();
+  if (tlsCertSha256 && !/^[0-9A-F]{64}$/.test(tlsCertSha256)) {
+    throw new Error(
+      "Invalid configuration:\n  - OMADA_TLS_CERT_SHA256: expected a SHA-256 certificate fingerprint",
+    );
+  }
+  if (tlsCertSha256 && !env.OMADA_VERIFY_TLS) {
+    throw new Error(
+      "Invalid configuration:\n  - OMADA_TLS_CERT_SHA256: requires OMADA_VERIFY_TLS=true",
+    );
+  }
+
   return {
     baseUrl,
     clientId: env.OMADA_CLIENT_ID,
@@ -137,6 +153,8 @@ export function loadConfig(): Config {
     omadacId: env.OMADA_OMADAC_ID,
     siteId: env.OMADA_SITE_ID,
     verifyTls: env.OMADA_VERIFY_TLS,
+    tlsCaFile: env.OMADA_TLS_CA_FILE,
+    tlsCertSha256,
     timeoutMs: env.OMADA_TIMEOUT_MS,
     capabilityProfile: env.OMADA_CAPABILITY_PROFILE,
     transport: env.MCP_TRANSPORT,

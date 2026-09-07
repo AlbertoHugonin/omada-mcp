@@ -67,6 +67,8 @@ export class OmadaClient {
     this.http = new HttpClient({
       verifyTls: config.verifyTls,
       timeoutMs: config.timeoutMs,
+      tlsCaFile: config.tlsCaFile,
+      tlsCertSha256: config.tlsCertSha256,
     });
     this.tokens = new TokenManager(this.http, config);
   }
