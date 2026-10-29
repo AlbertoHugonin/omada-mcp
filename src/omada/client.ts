@@ -106,6 +106,97 @@ export class OmadaClient {
     return `/openapi/v1/${this.config.omadacId}/sites/${siteId}${suffix}`;
   }
 
+  /** Typed, controller-side DHCP management (independent of client fixedIp PATCH). */
+  async getDhcpNetworks(siteId: string): Promise<any[]> {
+    const response = (await this.authedRequest(this.sitePath(siteId, "/lan-networks"), {
+      query: { page: 1, pageSize: 100 },
+    })) as { data: any[]; totalRows: number };
+    if (!Array.isArray(response.data) || response.totalRows > 100)
+      throw new Error("incomplete DHCP network inventory");
+    return response.data;
+  }
+
+  async getDhcpNetwork(siteId: string, id: string): Promise<any> {
+    return this.authedRequest(this.sitePath(siteId, `/lan-networks/${encodeURIComponent(id)}`));
+  }
+
+  async getDhcpReservations(siteId: string): Promise<any[]> {
+    const response = (await this.authedRequest(this.sitePath(siteId, "/setting/service/dhcp"), {
+      query: { page: 1, pageSize: 500 },
+    })) as { data: any[]; totalRows: number };
+    if (!Array.isArray(response.data) || response.totalRows > 500)
+      throw new Error("incomplete DHCP reservations inventory");
+    return response.data;
+  }
+
+  /** Only updates DHCP range, while preserving LAN interfaces, subnet, DNS and lease duration. */
+  async updateDhcpNetworkPool(
+    siteId: string,
+    current: any,
+    start: string,
+    end: string,
+  ): Promise<void> {
+    const dhcp = current.dhcpSettings;
+    if (!dhcp?.enable || dhcp.ipRangePool?.length !== 1)
+      throw new Error("unexpected DHCP configuration");
+    const body = {
+      name: current.name,
+      purpose: current.purpose,
+      isolation: current.isolation,
+      interfaceIds: current.interfaceIds,
+      vlanType: current.vlanType,
+      application: current.application,
+      vlan: current.vlan,
+      gatewaySubnet: current.gatewaySubnet,
+      domain: current.domain,
+      igmpSnoopEnable: current.igmpSnoopEnable,
+      mldSnoopEnable: current.mldSnoopEnable,
+      dhcpL2RelayEnable: current.dhcpL2RelayEnable,
+      dhcpGuard: current.dhcpGuard,
+      dhcpv6Guard: current.dhcpv6Guard,
+      lanNeworkIpv6Config: current.lanNeworkIpv6Config,
+      allLan: current.allLan,
+      dhcpSettingsVO: {
+        enable: dhcp.enable,
+        ipaddrStart: start,
+        ipaddrEnd: end,
+        ipRangeStart: dhcp.ipRangeStart,
+        ipRangeEnd: dhcp.ipRangeEnd,
+        dhcpns: dhcp.dhcpns,
+        priDns: dhcp.priDns,
+        sndDns: dhcp.sndDns,
+        leasetime: dhcp.leasetime,
+        gateway: dhcp.gateway,
+        hostIP: dhcp.hostIP,
+        option60: dhcp.option60,
+        option66: dhcp.option66,
+        option138: dhcp.option138,
+        dhcpNextServer: dhcp.dhcpNextServer,
+        options: dhcp.options,
+      },
+    };
+    await this.authedRequest(
+      this.sitePath(siteId, `/lan-networks/${encodeURIComponent(current.id)}`),
+      { method: "PATCH", body },
+    );
+  }
+
+  /** Create/update a router-side reservation. Does not force DHCP lease renewal. */
+  async upsertDhcpReservation(
+    siteId: string,
+    mac: string,
+    body: Record<string, unknown>,
+    alreadyExists: boolean,
+  ): Promise<void> {
+    const suffix = alreadyExists
+      ? `/setting/service/dhcp/${encodeURIComponent(mac)}`
+      : "/setting/service/dhcp";
+    await this.authedRequest(this.sitePath(siteId, suffix), {
+      method: alreadyExists ? "PATCH" : "POST",
+      body,
+    });
+  }
+
   // ─── Sites ────────────────────────────────────────────────────────────────
 
   /** Lists all sites on the controller. */
