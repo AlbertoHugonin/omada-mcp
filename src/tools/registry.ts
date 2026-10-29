@@ -14,6 +14,7 @@ import { listSitesTool } from "./read/listSites.js";
 import { listSsidsTool } from "./read/listSsids.js";
 import type { ToolContext, ToolModule } from "./types.js";
 import { applyDhcpPlanTool } from "./write/applyDhcpPlan.js";
+import { applyIotReservationsTool } from "./write/applyIotReservations.js";
 import { blockClientTool } from "./write/blockClient.js";
 import { rebootDeviceTool } from "./write/rebootDevice.js";
 import { reconnectClientTool } from "./write/reconnectClient.js";
@@ -56,6 +57,7 @@ const ALL_TOOLS: readonly ToolModule[] = [
   updateSsidTool,
   updateApRadioTool,
   applyDhcpPlanTool,
+  applyIotReservationsTool,
 ];
 
 /**
