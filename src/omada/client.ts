@@ -181,6 +181,16 @@ export class OmadaClient {
     );
   }
 
+  /** Remove an existing router-side DHCP reservation. Caller verifies exact MAC/IP. */
+  async deleteDhcpReservation(siteId: string, mac: string): Promise<void> {
+    await this.authedRequest(
+      this.sitePath(siteId, `/setting/service/dhcp/${encodeURIComponent(mac)}`),
+      {
+        method: "DELETE",
+      },
+    );
+  }
+
   /** Create/update a router-side reservation. Does not force DHCP lease renewal. */
   async upsertDhcpReservation(
     siteId: string,

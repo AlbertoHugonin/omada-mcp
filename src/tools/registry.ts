@@ -16,6 +16,7 @@ import type { ToolContext, ToolModule } from "./types.js";
 import { applyDhcpPlanTool } from "./write/applyDhcpPlan.js";
 import { applyIotReservationsTool } from "./write/applyIotReservations.js";
 import { blockClientTool } from "./write/blockClient.js";
+import { cleanupLegacyDhcpReservationsTool } from "./write/cleanupLegacyDhcpReservations.js";
 import { rebootDeviceTool } from "./write/rebootDevice.js";
 import { reconnectClientTool } from "./write/reconnectClient.js";
 import { setClientFixedIpTool } from "./write/setClientFixedIp.js";
@@ -58,6 +59,7 @@ const ALL_TOOLS: readonly ToolModule[] = [
   updateApRadioTool,
   applyDhcpPlanTool,
   applyIotReservationsTool,
+  cleanupLegacyDhcpReservationsTool,
 ];
 
 /**
