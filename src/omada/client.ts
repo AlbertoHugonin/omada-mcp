@@ -269,6 +269,18 @@ export class OmadaClient {
     return parseApiResult(clientSchema, raw, `GET /sites/{siteId}/clients/${clientMac}`);
   }
 
+  /** Omada exposes a dedicated PATCH /clients/{mac}/name endpoint.
+   *  PATCH /clients/{mac} returns HTTP 405 and cannot be used to rename. */
+  async setClientName(siteId: string, clientMac: string, name: string): Promise<void> {
+    await this.authedRequest(
+      this.sitePath(siteId, `/clients/${encodeURIComponent(clientMac)}/name`),
+      {
+        method: "PATCH",
+        body: { name },
+      },
+    );
+  }
+
   /** Update supported client identity/address settings using the Omada v1 API. */
   async updateClient(siteId: string, clientMac: string, body: ClientUpdate): Promise<void> {
     await this.authedRequest(this.sitePath(siteId, `/clients/${encodeURIComponent(clientMac)}`), {

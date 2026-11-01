@@ -33,7 +33,7 @@ function registerTool(
 
 describe("Jarvis client write tools", () => {
   it("set_client_name is a non-destructive idempotent write and defaults to dry-run", async () => {
-    const updateClient = vi.fn();
+    const setClientName = vi.fn();
     const getClient = vi.fn().mockResolvedValue({
       mac: "AA:BB:CC:DD:EE:FF",
       name: "old-name",
@@ -41,7 +41,7 @@ describe("Jarvis client write tools", () => {
     });
     const ctx = {
       config: { siteId: "site-1" },
-      client: { getClient, updateClient },
+      client: { getClient, setClientName },
     } as unknown as ToolContext;
 
     const { handler, metadata } = registerTool(setClientNameTool, ctx);
@@ -54,7 +54,29 @@ describe("Jarvis client write tools", () => {
     const result = await handler({ clientMac: "AA:BB:CC:DD:EE:FF", name: "printer" });
     expect(result.isError).not.toBe(true);
     expect(result.content[0]?.text).toContain("DRY RUN");
-    expect(updateClient).not.toHaveBeenCalled();
+    expect(setClientName).not.toHaveBeenCalled();
+  });
+
+  it("set_client_name uses Omada's dedicated rename endpoint and rereads the client", async () => {
+    const setClientName = vi.fn().mockResolvedValue(undefined);
+    const getClient = vi
+      .fn()
+      .mockResolvedValueOnce({ mac: "AA:BB:CC:DD:EE:FF", name: "old-name" })
+      .mockResolvedValueOnce({ mac: "AA:BB:CC:DD:EE:FF", name: "new-name" });
+    const ctx = {
+      config: { siteId: "site-1" },
+      client: { getClient, setClientName },
+    } as unknown as ToolContext;
+    const { handler } = registerTool(setClientNameTool, ctx);
+    const result = await handler({
+      clientMac: "AA:BB:CC:DD:EE:FF",
+      name: "new-name",
+      dryRun: false,
+    });
+    expect(result.isError).not.toBe(true);
+    expect(setClientName).toHaveBeenCalledWith("site-1", "AA:BB:CC:DD:EE:FF", "new-name");
+    expect(getClient).toHaveBeenCalledTimes(2);
+    expect(result.content[0]?.text).toContain("Post-apply state");
   });
 
   it("set_client_fixed_ip can preserve the client's current IP and verifies post-apply state", async () => {

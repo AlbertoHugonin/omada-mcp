@@ -44,7 +44,7 @@ export const setClientNameTool: ToolModule = {
             return statePreview({ what: "client name", target, changes, dryRun: true });
           }
 
-          await ctx.client.updateClient(siteId, args.clientMac, { name });
+          await ctx.client.setClientName(siteId, args.clientMac, name);
           const after = await ctx.client.getClient(siteId, args.clientMac);
           const actual = { name: after.name ?? null };
 
